@@ -1,0 +1,5 @@
+steps:
+  - label: ":brain: Evaluate what to do"
+    command: ".buildkite/dynamic.sh"
+    agents:
+      queue: "Linux" # Matching your Managed Queue name
