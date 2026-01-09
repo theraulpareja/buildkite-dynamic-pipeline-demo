@@ -1,8 +1,9 @@
 #!/bin/bash
 set -e
 
-# Define the queue we want the NEXT steps to run on
-# In a real setup, you might send C++ jobs to "High-CPU-Queue" and Assets to "Generic-Queue"
+# Define the queue we want the NEXT steps to run on,
+# In a real setup, we might send C++ jobs to "High-CPU-Queue" and Assets to "Generic-Queue" as an example
+
 QUEUE="Linux"
 
 PIPELINE_FILE="pipeline_generated.yml"
@@ -16,6 +17,11 @@ if git diff --name-only HEAD~1 | grep "^src/"; then
   echo "    plugins:" >> "$PIPELINE_FILE"
   echo "      - docker#v5.8.0:" >> "$PIPELINE_FILE"
   echo "          image: 'gcr.io/bazel-public/bazel:latest'" >> "$PIPELINE_FILE"
+  echo "          workdir: /app" >> "$PIPELINE_FILE"
+  # ---------------------------------------------------------
+  # FIX: Override the default 'bazel' entrypoint to get a shell
+  echo "          entrypoint: '/bin/bash'" >> "$PIPELINE_FILE"
+  # ---------------------------------------------------------
   echo "    command: 'bazel build //:fiction-factory-game'" >> "$PIPELINE_FILE"
 fi
 
@@ -27,12 +33,12 @@ if git diff --name-only HEAD~1 | grep "^assets/"; then
   echo "    command: 'echo \"Compressing textures... Done!\"'" >> "$PIPELINE_FILE"
 fi
 
-# 3. Fallback (The "No Op" case that hung before)
+# 3. Fallback
 if ! grep -q "label:" "$PIPELINE_FILE"; then
   echo "  - label: ':zzz: No Op'" >> "$PIPELINE_FILE"
   echo "    agents:" >> "$PIPELINE_FILE"
   echo "      queue: \"$QUEUE\"" >> "$PIPELINE_FILE"
-  echo "    command: 'echo \"No buildable changes detected (Saved you a Bazel spin-up!)\"'" >> "$PIPELINE_FILE"
+  echo "    command: 'echo \"No buildable changes detected.\"' " >> "$PIPELINE_FILE"
 fi
 
 # Upload
