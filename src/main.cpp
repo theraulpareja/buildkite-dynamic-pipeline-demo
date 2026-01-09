@@ -5,7 +5,7 @@ int main() {
     std::cout << "[Fiction Factory Engine] Initializing Graphics..." << std::endl;
     std::cout << "[Fiction Factory Engine] Loading Assets..." << std::endl;
     std::cout << "[Fiction Factory Engine] Game Started!" << std::endl;
-    // std::cout << "[Fiction Factory Engine] Game Paused!" << std::endl;
+    std::cout << "[Fiction Factory Engine] Game Paused!" << std::endl;
     std::cout << "[Fiction Factory Engine] Game Stoped!" << std::endl;
     return 0;
 }
