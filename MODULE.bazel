@@ -1,0 +1,4 @@
+module(
+    name = "fiction_factory_game",
+    version = "1.0",
+)
