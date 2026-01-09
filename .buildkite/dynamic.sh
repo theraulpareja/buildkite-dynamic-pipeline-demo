@@ -1,21 +1,14 @@
 #!/bin/bash
 set -e
 
-# -------------------------------------------------------------------------
-# CONFIGURATION
-# -------------------------------------------------------------------------
 PIPELINE_FILE="pipeline_generated.yml"
 QUEUE="Linux"
-
-# -------------------------------------------------------------------------
-# LOGIC
-# -------------------------------------------------------------------------
 
 cat <<EOF > "$PIPELINE_FILE"
 steps:
 EOF
 
-# CASE 1: C++ Changes
+# CASE 1: C++ Changes (The Docker Build)
 if git diff --name-only HEAD~1 | grep -q "^src/"; then
   cat <<EOF >> "$PIPELINE_FILE"
   - label: ":bazel: Compile Game (C++)"
@@ -25,15 +18,15 @@ if git diff --name-only HEAD~1 | grep -q "^src/"; then
       - docker#v5.8.0:
           image: "gcr.io/bazel-public/bazel:latest"
           workdir: "/app"
-          # CRITICAL: Override the default 'bazel' entrypoint to get a shell
+          
+          # 1. PERMISSIONS: This enables the container to write 'bazel-out' to your repo
+          propagate-uid-gid: true
+          
+          # 2. SHELL: Ensures we bypass the default 'bazel' entrypoint
           entrypoint: "/bin/bash"
-          # COMMAND:
-          # 1. '-c' tells bash to run the string following it
-          # 2. We 'touch MODULE.bazel' to make the directory a valid Bazel workspace
-          # 3. We run the build
-          command: 
-            - "-c"
-            - "touch MODULE.bazel && bazel build //:fiction-factory-game"
+          
+          # 3. COMMAND: Just build. The plugin has already mounted your repo to /app
+          command: ["-c", "bazel build //:fiction-factory-game"]
 EOF
 fi
 
@@ -57,7 +50,4 @@ if ! grep -q "label:" "$PIPELINE_FILE"; then
 EOF
 fi
 
-# -------------------------------------------------------------------------
-# EXECUTION
-# -------------------------------------------------------------------------
 buildkite-agent pipeline upload "$PIPELINE_FILE"
