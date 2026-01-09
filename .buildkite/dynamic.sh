@@ -11,13 +11,11 @@ QUEUE="Linux"
 # LOGIC
 # -------------------------------------------------------------------------
 
-# Start the pipeline file
 cat <<EOF > "$PIPELINE_FILE"
 steps:
 EOF
 
-# CASE 1: C++ Changes (The Heavy Build)
-# We use 'grep' to check if any file in src/ changed
+# CASE 1: C++ Changes (The Docker Fix)
 if git diff --name-only HEAD~1 | grep -q "^src/"; then
   cat <<EOF >> "$PIPELINE_FILE"
   - label: ":bazel: Compile Game (C++)"
@@ -27,14 +25,16 @@ if git diff --name-only HEAD~1 | grep -q "^src/"; then
       - docker#v5.8.0:
           image: "gcr.io/bazel-public/bazel:latest"
           workdir: "/app"
-          # This 'shell' option is the magic fix. 
-          # It tells Docker: "Don't run 'bazel'. Just give me a bash shell."
-          shell: ["/bin/bash", "-e", "-c"]
-    command: "bazel build //:fiction-factory-game"
+          # ---------------------------------------------------
+          # CRITICAL FIX: Force the container to ignore 'bazel' 
+          # and start with bash instead.
+          # ---------------------------------------------------
+          entrypoint: "/bin/bash"
+          command: ["-c", "bazel build //:fiction-factory-game"]
 EOF
 fi
 
-# CASE 2: Asset Changes (The Light Task)
+# CASE 2: Asset Changes
 if git diff --name-only HEAD~1 | grep -q "^assets/"; then
   cat <<EOF >> "$PIPELINE_FILE"
   - label: ":art: Compress Assets"
@@ -44,10 +44,10 @@ if git diff --name-only HEAD~1 | grep -q "^assets/"; then
 EOF
 fi
 
-# CASE 3: No Changes (Fallback)
+# CASE 3: Fallback
 if ! grep -q "label:" "$PIPELINE_FILE"; then
   cat <<EOF >> "$PIPELINE_FILE"
-  - label: ":zzz: No code nor assets changes detected, nothing to do here"
+  - label: ":zzz: No Op"
     agents:
       queue: "$QUEUE"
     command: "echo 'No buildable changes detected.'"
