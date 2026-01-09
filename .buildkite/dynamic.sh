@@ -14,12 +14,14 @@ if git diff --name-only HEAD~1 | grep "^src/"; then
   echo "      - docker#v5.8.0:" >> "$PIPELINE_FILE"
   echo "          image: 'gcr.io/bazel-public/bazel:latest'" >> "$PIPELINE_FILE"
   echo "          workdir: /app" >> "$PIPELINE_FILE"
-  echo "          entrypoint: '/bin/bash'" >> "$PIPELINE_FILE"
   
   # ---------------------------------------------------------
-  # FIX: Use ["-c", "..."] so Bash executes it as a command, not a file
-  echo "    command: [\"-c\", \"bazel build //:fiction-factory-game\"]" >> "$PIPELINE_FILE"
+  # FIX: Use 'shell' to cleanly override the image entrypoint
+  # This tells Docker: "Ignore your entrypoint, run this shell instead"
+  echo "          shell: [\"/bin/bash\", \"-e\", \"-c\"]" >> "$PIPELINE_FILE"
   # ---------------------------------------------------------
+  
+  echo "    command: 'bazel build //:fiction-factory-game'" >> "$PIPELINE_FILE"
 fi
 
 # 2. Check for Asset Changes (Keep this as is)
