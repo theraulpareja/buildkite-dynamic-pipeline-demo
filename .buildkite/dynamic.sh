@@ -1,43 +1,60 @@
 #!/bin/bash
 set -e
 
-QUEUE="Linux"
+# -------------------------------------------------------------------------
+# CONFIGURATION
+# -------------------------------------------------------------------------
 PIPELINE_FILE="pipeline_generated.yml"
-echo "steps:" > "$PIPELINE_FILE"
+QUEUE="Linux"
 
-# 1. Check for C++ Changes
-if git diff --name-only HEAD~1 | grep "^src/"; then
-  echo "  - label: ':cpp: Compile Game Engine (Bazel)'" >> "$PIPELINE_FILE"
-  echo "    agents:" >> "$PIPELINE_FILE"
-  echo "      queue: \"$QUEUE\"" >> "$PIPELINE_FILE"
-  echo "    plugins:" >> "$PIPELINE_FILE"
-  echo "      - docker#v5.8.0:" >> "$PIPELINE_FILE"
-  echo "          image: 'gcr.io/bazel-public/bazel:latest'" >> "$PIPELINE_FILE"
-  echo "          workdir: /app" >> "$PIPELINE_FILE"
-  
-  # ---------------------------------------------------------
-  # FIX: Use 'shell' to cleanly override the image entrypoint
-  # This tells Docker: "Ignore your entrypoint, run this shell instead"
-  echo "          shell: [\"/bin/bash\", \"-e\", \"-c\"]" >> "$PIPELINE_FILE"
-  # ---------------------------------------------------------
-  
-  echo "    command: 'bazel build //:fiction-factory-game'" >> "$PIPELINE_FILE"
+# -------------------------------------------------------------------------
+# LOGIC
+# -------------------------------------------------------------------------
+
+# Start the pipeline file
+cat <<EOF > "$PIPELINE_FILE"
+steps:
+EOF
+
+# CASE 1: C++ Changes (The Heavy Build)
+# We use 'grep' to check if any file in src/ changed
+if git diff --name-only HEAD~1 | grep -q "^src/"; then
+  cat <<EOF >> "$PIPELINE_FILE"
+  - label: ":bazel: Compile Game (C++)"
+    agents:
+      queue: "$QUEUE"
+    plugins:
+      - docker#v5.8.0:
+          image: "gcr.io/bazel-public/bazel:latest"
+          workdir: "/app"
+          # This 'shell' option is the magic fix. 
+          # It tells Docker: "Don't run 'bazel'. Just give me a bash shell."
+          shell: ["/bin/bash", "-e", "-c"]
+    command: "bazel build //:fiction-factory-game"
+EOF
 fi
 
-# 2. Check for Asset Changes (Keep this as is)
-if git diff --name-only HEAD~1 | grep "^assets/"; then
-  echo "  - label: ':art: Compress Assets'" >> "$PIPELINE_FILE"
-  echo "    agents:" >> "$PIPELINE_FILE"
-  echo "      queue: \"$QUEUE\"" >> "$PIPELINE_FILE"
-  echo "    command: 'echo \"Compressing textures... Done!\"'" >> "$PIPELINE_FILE"
+# CASE 2: Asset Changes (The Light Task)
+if git diff --name-only HEAD~1 | grep -q "^assets/"; then
+  cat <<EOF >> "$PIPELINE_FILE"
+  - label: ":art: Compress Assets"
+    agents:
+      queue: "$QUEUE"
+    command: "echo 'Compressing textures... Done!'"
+EOF
 fi
 
-# 3. Fallback (Keep this as is)
+# CASE 3: No Changes (Fallback)
 if ! grep -q "label:" "$PIPELINE_FILE"; then
-  echo "  - label: ':zzz: No Op'" >> "$PIPELINE_FILE"
-  echo "    agents:" >> "$PIPELINE_FILE"
-  echo "      queue: \"$QUEUE\"" >> "$PIPELINE_FILE"
-  echo "    command: 'echo \"No buildable changes detected.\"' " >> "$PIPELINE_FILE"
+  cat <<EOF >> "$PIPELINE_FILE"
+  - label: ":zzz: No code nor assets changes detected, nothing to do here"
+    agents:
+      queue: "$QUEUE"
+    command: "echo 'No buildable changes detected.'"
+EOF
 fi
 
+# -------------------------------------------------------------------------
+# EXECUTION
+# -------------------------------------------------------------------------
 buildkite-agent pipeline upload "$PIPELINE_FILE"
